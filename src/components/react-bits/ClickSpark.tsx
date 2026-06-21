@@ -28,6 +28,12 @@ const ClickSpark = ({
   extraScale = 1.0,
   children
 }: ClickSparkProps) => {
+  const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768);
+  
+  if (isTouch) {
+    return <>{children}</>;
+  }
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sparksRef = useRef<Spark[]>([]);
 

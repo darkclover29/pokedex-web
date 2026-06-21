@@ -346,7 +346,6 @@ export default function App() {
 
   // Startup Holographic Animation State
   const [showSplash, setShowSplash] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(0);
 
   // National full roster basics cache state
   const [basicKantoList, setBasicKantoList] = useState<PokemonBase[]>([]);
@@ -394,62 +393,47 @@ export default function App() {
     }
   };
 
-  // Simulated Startup loading progress & laser sweep
+  // High-performance loading screen dismisser (triggered once core database is cached)
   useEffect(() => {
-    if (!showSplash) return;
-
-    // Safety timeout: ensure splash is closed in 3.5 seconds even if animations/references fail
-    const safetyTimeout = setTimeout(() => {
-      console.warn("Startup animation timed out, forcing load.");
-      setShowSplash(false);
-    }, 3500);
-
-    const startTime = Date.now();
-    const duration = 1800; // 1.8 seconds loading
-    
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min((elapsed / duration) * 100, 100);
-      setLoadingProgress(Math.floor(progress));
-      
-      if (progress >= 100) {
-        clearInterval(interval);
-        
+    if (basicKantoList.length > 0) {
+      const timer = setTimeout(() => {
         const splashOverlay = document.getElementById("neo-splash-overlay");
         const glassCard = document.getElementById("glass-boot-card");
-        const laser = document.getElementById("scanning-laser");
         
         if (glassCard && splashOverlay) {
           playRetroBeep();
-
-          const tl = gsap.timeline({
+          
+          gsap.to(glassCard, {
+            scale: 0.95,
+            opacity: 0,
+            duration: 0.35,
+            ease: "power2.in"
+          });
+          
+          gsap.to(splashOverlay, {
+            opacity: 0,
+            duration: 0.4,
+            delay: 0.15,
             onComplete: () => {
-              clearTimeout(safetyTimeout);
               setShowSplash(false);
             }
           });
-
-          // 1. Run laser sweep down
-          if (laser) {
-            gsap.set(laser, { display: "block", y: -10 });
-            tl.to(laser, { y: 384, duration: 0.6, ease: "power1.inOut" });
-          }
-
-          // 2. Shrink and fade overlay
-          tl.to(glassCard, { scale: 0.95, opacity: 0, duration: 0.3, ease: "power2.in" })
-            .to(splashOverlay, { opacity: 0, duration: 0.4 }, "-=0.15");
         } else {
-          clearTimeout(safetyTimeout);
           setShowSplash(false);
         }
-      }
-    }, 30);
+      }, 1200); // 1.2s display for branding, then smooth exit
 
-    return () => {
-      clearInterval(interval);
-      clearTimeout(safetyTimeout);
-    };
-  }, [showSplash]);
+      return () => clearTimeout(timer);
+    }
+  }, [basicKantoList]);
+
+  // Safety fallback in case APIs fail
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 4500);
+    return () => clearTimeout(safetyTimer);
+  }, []);
 
   const PAGE_LIMIT = 24;
 
@@ -698,28 +682,19 @@ export default function App() {
             {/* Bottom: Loading progress */}
             <div className="w-full font-mono text-xs text-center space-y-2">
               <div className="text-[8px] text-neutral-500 uppercase tracking-widest min-h-[14px]">
-                {loadingProgress < 40 ? (
-                  <span className="animate-pulse">Loading regional map indexes...</span>
-                ) : loadingProgress < 75 ? (
-                  <span className="animate-pulse">Parsing type effectiveness charts...</span>
-                ) : loadingProgress < 100 ? (
-                  <span className="animate-pulse">Syncing localStorage vaults...</span>
-                ) : (
-                  <span className="text-emerald-400 font-bold">Boot sequence complete</span>
-                )}
+                <span className="animate-pulse">Caching national index entries...</span>
               </div>
 
               {/* Progress bar */}
               <div className="w-full h-1 bg-neutral-900 border border-white/5 rounded-full overflow-hidden relative">
                 <div
-                  className="h-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-indigo-500 transition-all duration-100 rounded-full"
-                  style={{ width: `${loadingProgress}%` }}
+                  className="h-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-indigo-500 rounded-full animate-[loadingBar_1.8s_ease-out_forwards]"
                 />
               </div>
               
               <div className="flex justify-between items-center text-[9px] text-neutral-600">
                 <span>SYS_INIT</span>
-                <span>{loadingProgress}%</span>
+                <span>ONLINE</span>
               </div>
             </div>
 
