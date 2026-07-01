@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ShieldAlert, Plus, Trash2, Shield, Info, HelpCircle, Users } from "lucide-react";
 import type { PokemonFullDetails, PokemonBase } from "@/services/pokeapi";
 import { calculateTypeMatchups } from "@/services/typeEffectiveness";
+import { TYPE_COLORS, TYPE_COUNTERS } from "@/constants/types";
 
 interface TeamBuilderProps {
   team: PokemonFullDetails[];
@@ -9,49 +10,6 @@ interface TeamBuilderProps {
   onAdd: (id: number) => void;
   allPokemonList: PokemonBase[];
 }
-
-const typeColors: Record<string, string> = {
-  normal: "#A8A77A",
-  fire: "#EE8130",
-  water: "#6390F0",
-  electric: "#F7D02C",
-  grass: "#7AC74C",
-  ice: "#96D9D6",
-  fighting: "#C22E28",
-  poison: "#A33EA1",
-  ground: "#E2BF65",
-  flying: "#A98FF3",
-  psychic: "#F95587",
-  bug: "#A6B91A",
-  rock: "#B6A136",
-  ghost: "#735797",
-  dragon: "#6F35FC",
-  dark: "#705746",
-  steel: "#B7B7CE",
-  fairy: "#D685AD",
-};
-
-// Counter elements mapping
-const typeCounters: Record<string, string[]> = {
-  normal: ["fighting"],
-  fire: ["water", "ground", "rock"],
-  water: ["grass", "electric"],
-  electric: ["ground"],
-  grass: ["fire", "ice", "poison", "flying", "bug"],
-  ice: ["fire", "fighting", "rock", "steel"],
-  fighting: ["flying", "psychic", "fairy"],
-  poison: ["ground", "psychic"],
-  ground: ["water", "grass", "ice"],
-  flying: ["electric", "ice", "rock"],
-  psychic: ["bug", "ghost", "dark"],
-  bug: ["fire", "flying", "rock"],
-  rock: ["water", "grass", "fighting", "ground", "steel"],
-  ghost: ["ghost", "dark"],
-  dragon: ["ice", "dragon", "fairy"],
-  dark: ["fighting", "bug", "fairy"],
-  steel: ["fire", "fighting", "ground"],
-  fairy: ["poison", "steel"],
-};
 
 export function TeamBuilder({ team, onRemove, onAdd, allPokemonList }: TeamBuilderProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -135,7 +93,7 @@ export function TeamBuilder({ team, onRemove, onAdd, allPokemonList }: TeamBuild
         criticalWeaknesses.push({
           type,
           count,
-          counters: typeCounters[type] || [],
+          counters: TYPE_COUNTERS[type] || [],
         });
       }
     });
@@ -217,7 +175,7 @@ export function TeamBuilder({ team, onRemove, onAdd, allPokemonList }: TeamBuild
                       <span
                         key={type}
                         className="text-[8px] uppercase px-1.5 py-0.5 rounded border border-white/5 bg-white/5"
-                        style={{ color: typeColors[type] }}
+                        style={{ color: TYPE_COLORS[type] }}
                       >
                         {type}
                       </span>
@@ -250,7 +208,7 @@ export function TeamBuilder({ team, onRemove, onAdd, allPokemonList }: TeamBuild
           }
 
           const primaryType = member.types[0] || "normal";
-          const themeColor = typeColors[primaryType] || typeColors.normal;
+          const themeColor = TYPE_COLORS[primaryType] || TYPE_COLORS.normal;
 
           return (
             <div
@@ -297,7 +255,7 @@ export function TeamBuilder({ team, onRemove, onAdd, allPokemonList }: TeamBuild
                     <span
                       key={type}
                       className="text-[7px] uppercase font-mono px-1 rounded bg-black/40 border border-white/5"
-                      style={{ color: typeColors[type] }}
+                      style={{ color: TYPE_COLORS[type] }}
                     >
                       {type.substring(0, 3)}
                     </span>
@@ -380,7 +338,7 @@ export function TeamBuilder({ team, onRemove, onAdd, allPokemonList }: TeamBuild
                           <span
                             key={c}
                             className="px-1.5 py-0.5 rounded border border-white/10 uppercase font-bold text-white/90"
-                            style={{ backgroundColor: typeColors[c] }}
+                            style={{ backgroundColor: TYPE_COLORS[c] }}
                           >
                             {c}
                           </span>

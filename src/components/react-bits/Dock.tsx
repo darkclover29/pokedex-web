@@ -10,6 +10,8 @@ interface DockItemData {
   label: string;
   onClick: () => void;
   className?: string;
+  /** When true, renders an active indicator dot below the icon. */
+  isActive?: boolean;
 }
 
 interface DockItemProps {
@@ -23,6 +25,7 @@ interface DockItemProps {
   baseItemSize: number;
   label: string;
   isSmall?: boolean;
+  isActive?: boolean;
 }
 
 function DockItem({
@@ -35,7 +38,8 @@ function DockItem({
   magnification,
   baseItemSize,
   label,
-  isSmall = false
+  isSmall = false,
+  isActive = false,
 }: DockItemProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isHovered = useMotionValue(0);
@@ -94,6 +98,7 @@ function DockItem({
       aria-haspopup="true"
       aria-label={label}
       onKeyDown={handleKeyDown}
+      aria-pressed={isActive}
     >
       {Children.map(children, child => {
         if (isValidElement(child)) {
@@ -101,6 +106,13 @@ function DockItem({
         }
         return child;
       })}
+      {/* Active indicator dot */}
+      {isActive && (
+        <span
+          className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]"
+          aria-hidden="true"
+        />
+      )}
     </motion.div>
   );
 }
@@ -231,13 +243,14 @@ export default function Dock({
             key={index}
             onClick={item.onClick}
             className={item.className}
-            mouseX={mouseX}
+             mouseX={mouseX}
             spring={spring}
             distance={distance}
             magnification={finalMagnification}
             baseItemSize={finalBaseItemSize}
             label={item.label}
             isSmall={isSmall}
+            isActive={item.isActive}
           >
             <DockIcon>{item.icon}</DockIcon>
             <DockLabel>{item.label}</DockLabel>

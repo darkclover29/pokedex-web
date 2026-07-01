@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import gsap from "gsap";
-import { Search, RotateCcw, HelpCircle, Gamepad2, Volume2, ShieldAlert, Heart, Users, Mic, MicOff, Sword, Home, Layers, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Search, RotateCcw, HelpCircle, Gamepad2, Volume2, ShieldAlert, Heart, Users, Mic, MicOff, Sword, Home, Layers, Sparkles, WifiOff } from "lucide-react";
 import { fetchPokemonList, fetchPokemonDetails, fetchBasicPokemonList } from "./services/pokeapi";
 import type { PokemonBase, PokemonFullDetails } from "./services/pokeapi";
+import { TYPE_COLORS, POKEMON_TYPES } from "./constants/types";
 import { PokemonCard } from "./components/PokemonCard";
 import { PokemonDetails } from "./components/PokemonDetails";
 import { CompareDeck } from "./components/CompareDeck";
@@ -13,23 +14,12 @@ import { TeamBuilder } from "./components/TeamBuilder";
 import { BattleArena } from "./components/BattleArena";
 import { CardPackOpener } from "./components/CardPackOpener";
 import { Showroom } from "./components/Showroom";
-import { Particles } from "./components/magicui/Particles";
-import { BlurFade } from "./components/magicui/BlurFade";
 import { Input } from "./components/ui/Input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./components/ui/Dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/Select";
 import { ShinyText } from "./components/react-bits/ShinyText";
-import ClickSpark from "./components/react-bits/ClickSpark";
 import Dock from "./components/react-bits/Dock";
 import TrueFocus from "./components/react-bits/TrueFocus";
-import RetroBackground from "./components/react-bits/RetroBackground";
-import TargetCursor from "./components/react-bits/TargetCursor";
-
-const POKEMON_TYPES = [
-  "all", "normal", "fire", "water", "electric", "grass", "ice",
-  "fighting", "poison", "ground", "flying", "psychic", "bug",
-  "rock", "ghost", "dragon", "dark", "steel", "fairy"
-];
 
 const REGIONS: Record<string, { offset: number; limit: number; name: string }> = {
   kanto: { offset: 0, limit: 151, name: "Kanto (Gen 1)" },
@@ -43,26 +33,6 @@ const REGIONS: Record<string, { offset: number; limit: number; name: string }> =
   paldea: { offset: 905, limit: 120, name: "Paldea (Gen 9)" },
 };
 
-const TYPE_COLORS: Record<string, string> = {
-  normal: "#A8A77A",
-  fire: "#EE8130",
-  water: "#6390F0",
-  electric: "#F7D02C",
-  grass: "#7AC74C",
-  ice: "#96D9D6",
-  fighting: "#C22E28",
-  poison: "#A33EA1",
-  ground: "#E2BF65",
-  flying: "#A98FF3",
-  psychic: "#F95587",
-  bug: "#A6B91A",
-  rock: "#B6A136",
-  ghost: "#735797",
-  dragon: "#6F35FC",
-  dark: "#705746",
-  steel: "#B7B7CE",
-  fairy: "#D685AD",
-};
 
 function hexToRgbStr(hex: string): string {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -90,50 +60,16 @@ function PokemonCardSkeleton() {
 }
 
 export default function App() {
-  const revealImgRef = useRef<HTMLDivElement>(null);
 
-  const lastMousePos = useRef({ x: -9999, y: -9999 });
-  const rafId = useRef<number | null>(null);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    lastMousePos.current = { x: e.clientX, y: e.clientY };
-    if (rafId.current === null) {
-      rafId.current = requestAnimationFrame(() => {
-        const el = revealImgRef.current;
-        if (el) {
-          el.style.setProperty('--mx', `${lastMousePos.current.x}px`);
-          el.style.setProperty('--my', `${lastMousePos.current.y}px`);
-        }
-        rafId.current = null;
-      });
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (rafId.current !== null) {
-      cancelAnimationFrame(rafId.current);
-      rafId.current = null;
-    }
-    const el = revealImgRef.current;
-    if (el) {
-      el.style.setProperty('--mx', '-9999px');
-      el.style.setProperty('--my', '-9999px');
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (rafId.current !== null) {
-        cancelAnimationFrame(rafId.current);
-      }
-    };
-  }, []);
+  // URL search params — sync ?pokemon=ID with detail dialog
+  const [, setSearchParams] = useSearchParams();
 
   // Lists & pagination
   const [pokemonList, setPokemonList] = useState<PokemonBase[]>([]);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Team Builder state
   const [team, setTeam] = useState<PokemonFullDetails[]>(() => {
@@ -175,6 +111,13 @@ export default function App() {
 
   // Region / Gen selection state
   const [selectedRegion, setSelectedRegion] = useState("kanto");
+  const [gridVisible, setGridVisible] = useState(true);
+
+  // Dynamic page title
+  useEffect(() => {
+    const regionName = REGIONS[selectedRegion]?.name.split(" ")[0] ?? "Pokédex";
+    document.title = `PocketDex · ${regionName}`;
+  }, [selectedRegion]);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -192,12 +135,34 @@ export default function App() {
   const [searchedPokemon, setSearchedPokemon] = useState<PokemonBase | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  // Detail Dialog state
-  const [selectedPokemonId, setSelectedPokemonId] = useState<number | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Detail Dialog state — synced with ?pokemon= URL param
+  const [selectedPokemonId, setSelectedPokemonId] = useState<number | null>(() => {
+    const param = new URLSearchParams(window.location.search).get("pokemon");
+    return param ? parseInt(param, 10) : null;
+  });
+  const [dialogOpen, setDialogOpen] = useState(() => {
+    return !!new URLSearchParams(window.location.search).get("pokemon");
+  });
 
-  // Compare Deck state
-  const [compareIds, setCompareIds] = useState<number[]>([]);
+  // Compare Deck state — persisted to localStorage
+  const [compareIds, setCompareIds] = useState<number[]>(() => {
+    const saved = localStorage.getItem("pocketdex_compare");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Sync compareIds to localStorage
+  useEffect(() => {
+    localStorage.setItem("pocketdex_compare", JSON.stringify(compareIds));
+  }, [compareIds]);
+
+  // Sync selectedPokemonId ↔ ?pokemon= URL param
+  useEffect(() => {
+    if (dialogOpen && selectedPokemonId !== null) {
+      setSearchParams({ pokemon: String(selectedPokemonId) }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  }, [dialogOpen, selectedPokemonId, setSearchParams]);
 
   // Modals Open state
   const [minigameOpen, setMinigameOpen] = useState(false);
@@ -213,47 +178,58 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const [voiceToast, setVoiceToast] = useState<string | null>(null);
 
+  const anyModalOpen = showroomOpen || battleArenaOpen || gymCountersOpen || teamBuilderOpen ||
+    soundboardOpen || minigameOpen || packOpenerOpen;
+
   const dockItems = [
     {
       icon: <Home size={18} className="text-blue-400" />,
       label: "Home",
-      onClick: () => handleResetFilters()
+      onClick: () => handleResetFilters(),
+      isActive: !anyModalOpen,
     },
     {
       icon: <Sparkles size={18} className="text-amber-400" />,
       label: "3D Showroom",
-      onClick: () => setShowroomOpen(true)
+      onClick: () => setShowroomOpen(true),
+      isActive: showroomOpen,
     },
     {
       icon: <Sword size={18} className="text-rose-500" />,
       label: "Battle Arena",
-      onClick: () => setBattleArenaOpen(true)
+      onClick: () => setBattleArenaOpen(true),
+      isActive: battleArenaOpen,
     },
     {
       icon: <ShieldAlert size={18} className="text-rose-400" />,
       label: "Gym Advisors",
-      onClick: () => setGymCountersOpen(true)
+      onClick: () => setGymCountersOpen(true),
+      isActive: gymCountersOpen,
     },
     {
       icon: <Users size={18} className="text-cyan-400" />,
       label: "Squad Builder",
-      onClick: () => setTeamBuilderOpen(true)
+      onClick: () => setTeamBuilderOpen(true),
+      isActive: teamBuilderOpen,
     },
     {
       icon: <Volume2 size={18} className="text-emerald-400" />,
       label: "Vocal Board",
-      onClick: () => setSoundboardOpen(true)
+      onClick: () => setSoundboardOpen(true),
+      isActive: soundboardOpen,
     },
     {
       icon: <Gamepad2 size={18} className="text-amber-400" />,
       label: "Silhouette Game",
-      onClick: () => setMinigameOpen(true)
+      onClick: () => setMinigameOpen(true),
+      isActive: minigameOpen,
     },
     {
       icon: <Layers size={18} className="text-purple-400" />,
       label: "Booster Opener",
-      onClick: () => setPackOpenerOpen(true)
-    }
+      onClick: () => setPackOpenerOpen(true),
+      isActive: packOpenerOpen,
+    },
   ];
 
   const startSpeechRecognition = () => {
@@ -393,36 +369,20 @@ export default function App() {
     }
   };
 
-  // High-performance loading screen dismisser (triggered once core database is cached)
+  // Dismiss splash once data is ready
   useEffect(() => {
     if (basicKantoList.length > 0) {
       const timer = setTimeout(() => {
+        playRetroBeep();
         const splashOverlay = document.getElementById("neo-splash-overlay");
-        const glassCard = document.getElementById("glass-boot-card");
-        
-        if (glassCard && splashOverlay) {
-          playRetroBeep();
-          
-          gsap.to(glassCard, {
-            scale: 0.95,
-            opacity: 0,
-            duration: 0.35,
-            ease: "power2.in"
-          });
-          
-          gsap.to(splashOverlay, {
-            opacity: 0,
-            duration: 0.4,
-            delay: 0.15,
-            onComplete: () => {
-              setShowSplash(false);
-            }
-          });
+        if (splashOverlay) {
+          splashOverlay.style.transition = "opacity 0.4s ease";
+          splashOverlay.style.opacity = "0";
+          setTimeout(() => setShowSplash(false), 420);
         } else {
           setShowSplash(false);
         }
-      }, 1200); // 1.2s display for branding, then smooth exit
-
+      }, 1200);
       return () => clearTimeout(timer);
     }
   }, [basicKantoList]);
@@ -440,12 +400,21 @@ export default function App() {
   // Load region when selectedRegion changes
   useEffect(() => {
     async function loadRegion() {
+      setGridVisible(false);
       setLoading(true);
+      setLoadError(null);
       const reg = REGIONS[selectedRegion];
-      const list = await fetchPokemonList(PAGE_LIMIT, reg.offset);
-      setPokemonList(list);
-      setOffset(reg.offset + PAGE_LIMIT);
-      setLoading(false);
+      try {
+        const list = await fetchPokemonList(PAGE_LIMIT, reg.offset);
+        setPokemonList(list);
+        setOffset(reg.offset + PAGE_LIMIT);
+      } catch {
+        setLoadError("Couldn't reach PokéAPI. Check your connection and try again.");
+        setPokemonList([]);
+      } finally {
+        setLoading(false);
+        setGridVisible(true);
+      }
     }
     loadRegion();
   }, [selectedRegion]);
@@ -590,28 +559,14 @@ export default function App() {
     offset < maxOffset;
 
   return (
-    <ClickSpark
-      sparkColor="#fbbf24"
-      sparkSize={12}
-      sparkRadius={20}
-      sparkCount={8}
-      duration={500}
-    >
-      <TargetCursor
-        spinDuration={2.5}
-        hideDefaultCursor={true}
-        parallaxOn={true}
-        targetSelector="a, button, input, select, [role='button'], .cursor-target"
-      />
       <div
-        className="relative min-h-screen pb-32 px-4 md:px-8 select-none transition-all duration-700"
+        className="relative min-h-screen pb-32 px-4 md:px-8 select-none"
         style={{
           backgroundImage: selectedType === "all"
             ? 'none'
-            : `radial-gradient(at 50% 0%, rgba(${themeColorRgb}, 0.04) 0px, transparent 65%)`
+            : `radial-gradient(ellipse 80% 30% at 50% 0%, rgba(${themeColorRgb}, 0.06) 0%, transparent 70%)`,
+          transition: "background-image 0.5s ease",
         }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
       >
         
         {/* Startup Animated Holographic Glass Splash Screen */}
@@ -702,172 +657,142 @@ export default function App() {
         </div>
       )}
       
-      {/* Interactive Pokémon Retro Vector Reveal Background */}
-      <RetroBackground
-        className="transition-opacity duration-300"
-        style={{
-          opacity: 0.25,
-        }}
-      />
-      {/* Flat spotlight overlay to prevent SVG re-rasterization */}
-      <div
-        ref={revealImgRef}
-        className="fixed inset-0 pointer-events-none transition-all duration-700"
-        style={{
-          zIndex: 1,
-          '--mx': '-9999px',
-          '--my': '-9999px',
-          backgroundImage: selectedType === "all"
-            ? 'radial-gradient(circle 280px at var(--mx) var(--my), rgba(3,3,3,0) 0%, rgba(3,3,3,0.85) 60%, #030303 100%)'
-            : `radial-gradient(circle 280px at var(--mx) var(--my), rgba(${themeColorRgb}, 0.04) 0%, rgba(3,3,3,0.85) 60%, #030303 100%)`,
-        } as React.CSSProperties}
-      />
-      {/* Floating Canvas Particles */}
-      <Particles className="absolute inset-0 z-0" quantity={45} color={themeColorRgb} />
 
       <div className="relative max-w-7xl mx-auto z-10">
-        {/* Premium Compact Navigation Bar */}
-        <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-neutral-950/70 border-b border-white/5 py-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl md:text-2xl font-black tracking-wider uppercase font-mono">
-              <ShinyText text="POCKET DEX" speed={4.5} className="inline-block" />
-            </h1>
-            {/* Quick Stat Indicators */}
-            <div className="flex gap-2.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 text-[10px] font-mono text-neutral-400 font-bold items-center leading-none">
-              <div>
-                <span className="text-neutral-500 uppercase">Region:</span>{" "}
-                <span className="text-emerald-400">
-                  {Math.min(offset - reg.offset, reg.limit)}/{reg.limit}
-                </span>
-              </div>
-              <div className="w-[1px] bg-white/10 h-3" />
-              <div>
-                <span className="text-neutral-500 uppercase">Total:</span>{" "}
-                <span className="text-white">{pokemonList.length}</span>
-              </div>
-            </div>
-          </div>
+        {/* ── Header ── */}
+        <header className="sticky top-0 z-40 w-full" style={{ background: "rgba(8,8,12,0.95)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
 
-          <div className="flex items-center gap-2.5 w-full md:w-auto flex-grow md:flex-grow-0 max-w-3xl">
-            {/* Search bar */}
-            <div className="relative flex-grow min-w-[140px] md:min-w-[280px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500" />
+          {/* ── Main bar ── */}
+          <div className="flex items-center h-[60px] px-5 md:px-8 gap-4">
+
+            {/* Logo */}
+            <div className="flex items-center gap-2 flex-shrink-0 select-none">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="13" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5"/>
+                <path d="M1.5 14 A12.5 12.5 0 0 1 26.5 14" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="1.5" y1="14" x2="9" y2="14" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+                <line x1="19" y1="14" x2="26.5" y2="14" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"/>
+                <circle cx="14" cy="14" r="3.5" fill="#0a0a10" stroke="#34d399" strokeWidth="1.5"/>
+                <circle cx="14" cy="14" r="1.5" fill="#34d399"/>
+              </svg>
+              <h1 className="text-[15px] font-black tracking-tight text-white leading-none">
+                Pocket<span className="text-emerald-400">Dex</span>
+              </h1>
+            </div>
+
+            {/* Search — center, grows */}
+            <div className="relative flex-1 max-w-[480px] mx-auto">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500 pointer-events-none" />
               <Input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search by name or number…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-9 h-9 bg-neutral-900/40 hover:bg-neutral-900/60 text-xs"
+                className="h-10 pl-10 pr-10 rounded-2xl text-sm bg-white/[0.06] border-white/[0.09] hover:border-white/[0.18] focus:border-emerald-500/60 focus:bg-white/[0.08] placeholder:text-neutral-600 transition-all"
               />
               <button
                 onClick={startSpeechRecognition}
-                type="button"
-                className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 transition-all duration-300 ${
-                  isListening
-                    ? "bg-rose-500/20 text-rose-400 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.5)]"
-                    : "text-neutral-500 hover:text-white"
+                title="Voice search"
+                className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors ${
+                  isListening ? "text-rose-400 animate-pulse" : "text-neutral-600 hover:text-white"
                 }`}
-                title="Voice Command Search"
               >
-                {isListening ? (
-                  <MicOff className="h-3.5 w-3.5" />
-                ) : (
-                  <Mic className="h-3.5 w-3.5" />
-                )}
+                {isListening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
               </button>
             </div>
 
-            {/* Mobile Filter Button */}
-            <button
-              onClick={() => setMobileFiltersOpen(true)}
-              className={`md:hidden h-9 px-3 rounded-lg border text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all ${
-                selectedType !== "all" || selectedRegion !== "kanto" || sortBy !== "id-asc" || showFavoritesOnly
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                  : "bg-neutral-900/40 border-white/10 text-neutral-400"
-              }`}
-            >
-              <span>Filters</span>
-              {(selectedType !== "all" || selectedRegion !== "kanto" || sortBy !== "id-asc" || showFavoritesOnly) && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              )}
-            </button>
+            {/* Right controls */}
+            <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+              <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+                <SelectTrigger className="h-9 w-[108px] rounded-xl text-[12px] font-medium bg-white/[0.06] border-white/[0.08] hover:bg-white/[0.10] transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(REGIONS).map(([key, val]) => (
+                    <SelectItem key={key} value={key} className="text-[12px]">
+                      {val.name.split(" ")[0]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Quick Filters Flex Row for Desktop */}
-            <div className="hidden md:flex items-center gap-2">
-              {/* Region Selector */}
-              <div className="w-28 flex-shrink-0">
-                <Select value={selectedRegion} onValueChange={setSelectedRegion}>
-                  <SelectTrigger className="h-9 bg-neutral-900/40 font-mono text-[11px] px-2">
-                    <SelectValue placeholder="Region" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(REGIONS).map(([key, value]) => (
-                      <SelectItem key={key} value={key} className="font-mono text-[11px]">
-                        {value.name.split(" ")[0]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="hidden sm:flex h-9 w-[96px] rounded-xl text-[12px] font-medium bg-white/[0.06] border-white/[0.08] hover:bg-white/[0.10] transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="id-asc" className="text-[12px]">ID ↑</SelectItem>
+                  <SelectItem value="id-desc" className="text-[12px]">ID ↓</SelectItem>
+                  <SelectItem value="name-asc" className="text-[12px]">A → Z</SelectItem>
+                  <SelectItem value="name-desc" className="text-[12px]">Z → A</SelectItem>
+                </SelectContent>
+              </Select>
 
-              {/* Type Filter */}
-              <div className="w-24 flex-shrink-0">
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger className="h-9 capitalize bg-neutral-900/40 font-mono text-[11px] px-2">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {POKEMON_TYPES.map((type) => (
-                      <SelectItem key={type} value={type} className="capitalize font-mono text-[11px]">
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="w-px h-5 bg-white/[0.08] hidden sm:block" />
 
-              {/* Sort Order */}
-              <div className="w-28 flex-shrink-0">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="h-9 bg-neutral-900/40 font-mono text-[11px] px-2">
-                    <SelectValue placeholder="Order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="id-asc" className="font-mono text-[11px]">Index ↑</SelectItem>
-                    <SelectItem value="id-desc" className="font-mono text-[11px]">Index ↓</SelectItem>
-                    <SelectItem value="name-asc" className="font-mono text-[11px]">Name A-Z</SelectItem>
-                    <SelectItem value="name-desc" className="font-mono text-[11px]">Name Z-A</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Favorites Toggle */}
               <button
                 onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                title="Show Favorites Only"
-                className={`h-9 w-9 rounded-md border flex items-center justify-center transition-all ${
+                title="Favorites"
+                className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
                   showFavoritesOnly
-                    ? "bg-rose-500/20 border-rose-500 text-rose-400"
-                    : "bg-neutral-900/40 border-white/10 text-neutral-400 hover:text-white"
+                    ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/40"
+                    : "text-neutral-500 hover:text-rose-400 hover:bg-white/[0.06]"
                 }`}
               >
-                <Heart className={`h-3.5 w-3.5 ${showFavoritesOnly ? "fill-rose-400" : ""}`} />
+                <Heart className={`h-4 w-4 ${showFavoritesOnly ? "fill-rose-400" : ""}`} />
               </button>
 
-              {/* Reset Controls */}
               <button
                 onClick={handleResetFilters}
-                title="Reset Filters"
-                className="h-9 w-9 rounded-md border border-white/10 bg-neutral-900/40 hover:bg-neutral-800/80 transition-colors flex items-center justify-center"
+                title="Reset filters"
+                className="h-9 w-9 rounded-xl text-neutral-500 hover:text-white hover:bg-white/[0.06] transition-all flex items-center justify-center"
               >
-                <RotateCcw className="h-3.5 w-3.5 text-neutral-400 hover:text-white" />
+                <RotateCcw className="h-4 w-4" />
               </button>
             </div>
           </div>
+
+          {/* ── Type filter strip ── */}
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none px-5 md:px-8 pb-3" style={{ maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 95%, transparent 100%)" }}>
+            {POKEMON_TYPES.map((type) => {
+              const color = type === "all" ? "#94a3b8" : (TYPE_COLORS[type] || "#94a3b8");
+              const active = selectedType === type;
+              return (
+                <button
+                  key={type}
+                  onClick={() => setSelectedType(type)}
+                  className="flex-shrink-0 h-7 px-3.5 rounded-full text-[11px] font-semibold capitalize transition-all duration-150"
+                  style={active ? {
+                    color: "#fff",
+                    background: color,
+                    boxShadow: `0 0 14px ${color}55, 0 2px 6px rgba(0,0,0,0.4)`,
+                  } : {
+                    color: "rgba(255,255,255,0.4)",
+                    background: "rgba(255,255,255,0.05)",
+                  }}
+                >
+                  {type}
+                </button>
+              );
+            })}
+          </div>
         </header>
 
-        {/* Pokemon Main Grid Layout */}
-        <main className="mt-8">
+        {/* Pokemon Main Grid */}
+        <main className="px-4 md:px-8 pt-6 pb-24">
+          {/* API Error state */}
+          {loadError && !loading && (
+            <div className="h-64 flex flex-col items-center justify-center gap-3 border border-dashed border-rose-500/20 rounded-3xl bg-rose-950/10 text-rose-400">
+              <WifiOff className="h-10 w-10 opacity-60" />
+              <p className="font-mono text-sm text-center px-4">{loadError}</p>
+              <button
+                onClick={() => setSelectedRegion(selectedRegion)}
+                className="mt-1 px-4 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 font-mono text-xs hover:bg-rose-500/20 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {loading ? (
             // Initial Loading skeleton grid
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
@@ -876,23 +801,21 @@ export default function App() {
               ))}
             </div>
           ) : (
-            <>
+            <div style={{ transition: "opacity 220ms ease", opacity: gridVisible ? 1 : 0 }}>
               {/* If we have a single global search result */}
               {searchedPokemon && (
-                <div className="mb-10 max-w-[280px] mx-auto">
-                  <span className="block text-center text-xs font-mono text-emerald-400 uppercase mb-3">
-                    🔍 Global Database Hit
+                <div className="mb-10 max-w-[220px] mx-auto">
+                  <span className="block text-center text-xs font-mono text-emerald-400 uppercase mb-3 tracking-wider">
+                    Global match
                   </span>
-                  <BlurFade delay={0.1}>
-                    <PokemonCard
-                      pokemon={searchedPokemon}
-                      isComparing={compareIds.includes(searchedPokemon.id)}
-                      onCompareToggle={() => handleCompareToggle(searchedPokemon.id)}
-                      isFavorite={favorites.includes(searchedPokemon.id)}
-                      onFavoriteToggle={() => handleFavoriteToggle(searchedPokemon.id)}
-                      onClick={() => handleCardClick(searchedPokemon.id)}
-                    />
-                  </BlurFade>
+                  <PokemonCard
+                    pokemon={searchedPokemon}
+                    isComparing={compareIds.includes(searchedPokemon.id)}
+                    onCompareToggle={() => handleCompareToggle(searchedPokemon.id)}
+                    isFavorite={favorites.includes(searchedPokemon.id)}
+                    onFavoriteToggle={() => handleFavoriteToggle(searchedPokemon.id)}
+                    onClick={() => handleCardClick(searchedPokemon.id)}
+                  />
                 </div>
               )}
 
@@ -903,27 +826,22 @@ export default function App() {
                   <span className="font-mono text-sm">No Pokedex records found matching queries.</span>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {!searchedPokemon &&
-                    filteredList.map((pokemon, index) => (
-                      <BlurFade
+                    filteredList.map((pokemon) => (
+                      <PokemonCard
                         key={pokemon.id}
-                        delay={0.03 * (index % 12)}
-                        yOffset={6}
-                      >
-                        <PokemonCard
-                          pokemon={pokemon}
-                          isComparing={compareIds.includes(pokemon.id)}
-                          onCompareToggle={() => handleCompareToggle(pokemon.id)}
-                          isFavorite={favorites.includes(pokemon.id)}
-                          onFavoriteToggle={() => handleFavoriteToggle(pokemon.id)}
-                          onClick={() => handleCardClick(pokemon.id)}
-                        />
-                      </BlurFade>
+                        pokemon={pokemon}
+                        isComparing={compareIds.includes(pokemon.id)}
+                        onCompareToggle={() => handleCompareToggle(pokemon.id)}
+                        isFavorite={favorites.includes(pokemon.id)}
+                        onFavoriteToggle={() => handleFavoriteToggle(pokemon.id)}
+                        onClick={() => handleCardClick(pokemon.id)}
+                      />
                     ))}
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {/* Loader indicator while doing global search */}
@@ -933,28 +851,52 @@ export default function App() {
               Scanning global PokéAPI index...
             </div>
           )}
-
-          {/* Load More Button */}
-          {showLoadMore && (
-            <div className="mt-16 flex justify-center">
-              <button
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="relative px-8 py-3 rounded-2xl bg-neutral-900 border border-white/10 hover:border-emerald-400/40 text-neutral-200 hover:text-white font-semibold transition-all duration-300 font-mono text-sm shadow-[0_0_20px_rgba(0,0,0,0.5)] group overflow-hidden"
-              >
-                <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-out" />
-                {loadingMore ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
-                    Unlocking dex files...
-                  </span>
-                ) : (
-                  <span>Load Subsequent Entries</span>
-                )}
-              </button>
-            </div>
-          )}
         </main>
+
+        {/* ── Sticky load-more bar ── */}
+        {!loading && !searchedPokemon && !loadError && (
+          <div className="fixed bottom-[72px] md:bottom-[80px] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+               style={{ width: "min(480px, calc(100vw - 32px))" }}>
+            <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white/[0.08] bg-[#0e0e14]/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+              {/* Progress */}
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[11px] font-mono text-neutral-400">
+                    <span className="text-white font-bold">{pokemonList.length}</span>
+                    <span className="text-neutral-600"> / {REGIONS[selectedRegion].limit} · {REGIONS[selectedRegion].name.split(" ")[0]}</span>
+                  </span>
+                  {filteredList.length !== pokemonList.length && (
+                    <span className="text-[10px] font-mono text-emerald-400">{filteredList.length} shown</span>
+                  )}
+                </div>
+                <div className="h-[3px] w-full rounded-full bg-white/[0.06] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${Math.min(100, (pokemonList.length / REGIONS[selectedRegion].limit) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Load more button */}
+              {showLoadMore && (
+                <button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="flex-shrink-0 h-8 px-4 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-400/60 text-[12px] font-bold font-mono transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  {loadingMore ? (
+                    <span className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    "Load more"
+                  )}
+                </button>
+              )}
+              {!showLoadMore && pokemonList.length >= REGIONS[selectedRegion].limit && (
+                <span className="flex-shrink-0 text-[10px] font-mono text-neutral-600">All loaded ✓</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Immersive Details Dialog Modal */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -1317,6 +1259,5 @@ export default function App() {
 
       </div>
     </div>
-  </ClickSpark>
 );
 }
