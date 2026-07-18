@@ -77,8 +77,11 @@
   background-color: rgba(8, 8, 12, 0.95);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   isolation: isolate;
-  transform: translateZ(0);
   backface-visibility: hidden;
+}
+
+.production-header {
+  transform: translateZ(0);
 }
 
 .production-floating-panel {
