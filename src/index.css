@@ -70,6 +70,32 @@
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
 }
 
+/* Keep persistent production UI stable while scrolling. The translucent
+   surfaces remain readable without forcing backdrop-filter repaints. */
+.production-header,
+.production-floating-panel {
+  background-color: rgba(8, 8, 12, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.production-floating-panel {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

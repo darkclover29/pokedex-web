@@ -17,7 +17,6 @@ import { Showroom } from "./components/Showroom";
 import { Input } from "./components/ui/Input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./components/ui/Dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/Select";
-import { ShinyText } from "./components/react-bits/ShinyText";
 import Dock from "./components/react-bits/Dock";
 import TrueFocus from "./components/react-bits/TrueFocus";
 
@@ -660,7 +659,7 @@ export default function App() {
 
       <div className="relative max-w-7xl mx-auto z-10">
         {/* ── Header ── */}
-        <header className="sticky top-0 z-40 w-full" style={{ background: "rgba(8,8,12,0.95)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <header className="sticky top-0 z-40 w-full production-header">
 
           {/* ── Main bar ── */}
           <div className="flex items-center h-[60px] px-5 md:px-8 gap-4">
@@ -810,6 +809,7 @@ export default function App() {
                   </span>
                   <PokemonCard
                     pokemon={searchedPokemon}
+                    priority
                     isComparing={compareIds.includes(searchedPokemon.id)}
                     onCompareToggle={() => handleCompareToggle(searchedPokemon.id)}
                     isFavorite={favorites.includes(searchedPokemon.id)}
@@ -828,10 +828,11 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {!searchedPokemon &&
-                    filteredList.map((pokemon) => (
+                    filteredList.map((pokemon, index) => (
                       <PokemonCard
                         key={pokemon.id}
                         pokemon={pokemon}
+                        priority={index < 12}
                         isComparing={compareIds.includes(pokemon.id)}
                         onCompareToggle={() => handleCompareToggle(pokemon.id)}
                         isFavorite={favorites.includes(pokemon.id)}
@@ -857,7 +858,7 @@ export default function App() {
         {!loading && !searchedPokemon && !loadError && (
           <div className="fixed bottom-[72px] md:bottom-[80px] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
                style={{ width: "min(480px, calc(100vw - 32px))" }}>
-            <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white/[0.08] bg-[#0e0e14]/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+            <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white/[0.08] bg-[#0e0e14]/95 shadow-[0_8px_32px_rgba(0,0,0,0.5)] production-floating-panel">
               {/* Progress */}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1">
@@ -1217,7 +1218,7 @@ export default function App() {
         </Dialog>
 
         {/* Mobile Bottom Navigation Bar */}
-        <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90vw] max-w-[380px] z-[99] bg-[#0c0c10]/85 border border-white/10 backdrop-blur-xl py-2 px-3 rounded-2xl flex justify-around items-center shadow-[0_12px_36px_rgba(0,0,0,0.65)]">
+        <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90vw] max-w-[380px] z-[99] bg-[#0c0c10]/95 border border-white/10 py-2 px-3 rounded-2xl flex justify-around items-center shadow-[0_12px_36px_rgba(0,0,0,0.65)] production-floating-panel">
           <button
             onClick={() => {
               handleResetFilters();
