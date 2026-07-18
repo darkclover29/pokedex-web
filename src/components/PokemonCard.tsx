@@ -5,6 +5,7 @@ import { MEGA_EVOLUTIONS } from "@/services/megaEvolutions";
 
 interface PokemonCardProps {
   pokemon: PokemonBase;
+  priority?: boolean;
   hp?: number;
   onClick: () => void;
   isComparing: boolean;
@@ -22,6 +23,7 @@ function estimateHP(id: number, types: string[]): number {
 
 export function PokemonCard({
   pokemon,
+  priority = false,
   hp,
   onClick,
   isComparing,
@@ -139,7 +141,8 @@ export function PokemonCard({
             <img
               src={currentImage}
               alt={currentName}
-              loading="lazy"
+              loading={priority ? "eager" : "lazy"}
+              decoding="async"
               onLoad={() => setImgLoaded(true)}
               className={`relative z-10 w-[88px] h-[88px] object-contain transition-all duration-200 group-hover:scale-105 ${
                 imgLoaded ? "opacity-100" : "opacity-0"

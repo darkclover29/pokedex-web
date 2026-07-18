@@ -6,7 +6,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { calculateTypeMatchups } from "@/services/typeEffectiveness";
 import { EvolutionTree } from "./EvolutionTree";
 import { CatchSimulator } from "./CatchSimulator";
-import { CardCreator } from "./CardCreator";
 import { MEGA_EVOLUTIONS } from "@/services/megaEvolutions";
 import { TYPE_COLORS } from "@/constants/types";
 
